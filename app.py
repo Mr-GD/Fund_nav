@@ -15,7 +15,7 @@ st.markdown("基于前十大重仓股实时估算基金净值涨跌幅。")
 
 # Sidebar
 st.sidebar.header("配置")
-default_funds = "110011, 000001, 161725, 002611" # Examples: E-Fund Blue Chip, China AMC Growth, White Liquor, Gold
+default_funds = "002611, 008164, 006479" # Examples: E-Fund Blue Chip, China AMC Growth, White Liquor, Gold
 fund_input = st.sidebar.text_area("基金代码 (英文逗号分隔)", value=default_funds, height=100)
 auto_refresh = st.sidebar.checkbox("自动刷新 (每60秒)", value=False)
 refresh_btn = st.sidebar.button("立即刷新")
@@ -280,9 +280,16 @@ def render_dashboard():
                         if not df_det.empty:
                             df_det = df_det[['code', 'name', 'weight', 'price', 'change']]
                             df_det.columns = ['代码', '名称', '权重(%)', '现价', '涨跌(%)']
+                            # Fill None values in numeric columns to prevent format errors
+                            numeric_cols = ['权重(%)', '现价', '涨跌(%)']
+                            for col in numeric_cols:
+                                if col in df_det.columns:
+                                    df_det[col] = df_det[col].fillna(0.0)
                             
                             # Style highlights
                             def highlight_change(val):
+                                if val is None or not isinstance(val, (int, float)):
+                                    return ''
                                 color = '#d63031' if val > 0 else '#00b894' if val < 0 else ''
                                 return f'color: {color}'
                                 

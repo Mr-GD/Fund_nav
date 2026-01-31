@@ -81,8 +81,34 @@ def get_fund_history_nav(fund_code: str, days: int = 365) -> Optional[pd.DataFra
 
 def _get_fund_name_backup(fund_code: str) -> Optional[str]:
     """
-    Tries to get fund name from other pages (e.g. zqcc) if jjcc is empty.
+    Tries to get fund name from other pages (e.g. zqcc, jbgk) if jjcc is empty.
     """
+    # 1. Try JBGK (Basic Info) - Most reliable for name
+    try:
+        url = f"http://fundf10.eastmoney.com/jbgk_{fund_code}.html"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        resp = requests.get(url, headers=headers, timeout=3)
+        # Handle encoding
+        if 'charset=gb2312' in resp.text:
+            resp.encoding = 'gbk'
+        else:
+            resp.encoding = 'utf-8'
+        
+        # Match <th>基金全称</th><td>...</td> in liberal mode (whitespace friendly)
+        # Pattern usually: <th ...>基金全称</th> <td>Full Name</td>
+        # Using a simpler text scan might be safer if HTML varies
+        
+        match = re.search(r"基金全称.*?<td>(.*?)</td>", resp.text, re.DOTALL)
+        if match:
+             return match.group(1).strip()
+            
+        match = re.search(r"<th>基金全称</th>\s*<td>(.*?)</td>", resp.text)
+        if match:
+            return match.group(1).strip()
+    except Exception as e:
+        logging.warning(f"JBGK backup fetch failed: {e}")
+
+    # 2. Try ZQCC (Bond Holdings)
     url = "http://fundf10.eastmoney.com/FundArchivesDatas.aspx"
     params = {'type': 'zqcc', 'code': fund_code, 'topline': 10}
     headers = {
@@ -217,7 +243,7 @@ def get_fund_holdings(fund_code: str) -> Optional[Tuple[str, List[Dict[str, floa
                      stock_name = re.sub(r"<.*?>", "", cols[2]).strip()
                      
                      # Extract Weight (7th col, index 6)
-                     weight_str = re.sub(r"<.*?>", "", cols[6]).strip().replace('%', '')
+                     weight_str = re.sub(r"<.*?>", "", cols[6]).strip().replace('%', '').replace(',', '')
                      if not weight_str or weight_str == '--': continue
                      
                      weight = float(weight_str)
@@ -268,10 +294,12 @@ def get_fund_holdings(fund_code: str) -> Optional[Tuple[str, List[Dict[str, floa
         # Determine if we should look for ETF Target
         # Criteria:
         # 1. No holdings found
-        # 2. OR holdings found but total weight is suspicious (e.g. < 60%) AND name contains "ETF" or "联接" (Feeder)
+        # 2. OR total weight is abnormally high (>100%, indicating data issues)
+        # 3. OR holdings found but total weight is suspicious (<60%) AND name contains "ETF" or "联接" (Feeder)
         
         total_weight = sum(h['weight'] for h in holdings)
-        is_suspicious_low_weight = total_weight < 60.0 # Strict check
+        is_abnormal_high_weight = total_weight > 100.0  # Data issue indicator
+        is_suspicious_low_weight = total_weight < 60.0  # Strict check
         
         # If fund_name is missing, try backup (backup usually doesn't have date easily, or we can fetch again, but name is enough)
         if not fund_name:
@@ -279,16 +307,34 @@ def get_fund_holdings(fund_code: str) -> Optional[Tuple[str, List[Dict[str, floa
             
         is_feeder_named = fund_name and ("联接" in fund_name or "ETF" in fund_name)
         
-        if not holdings or (is_suspicious_low_weight and is_feeder_named):
+        if not holdings or (is_abnormal_high_weight and is_feeder_named) or (is_suspicious_low_weight and is_feeder_named):
             if is_feeder_named:
                 # Heuristic for Feeder
                 logging.info(f"Fund {fund_code} ({fund_name}) seems to be a Feeder (Weight: {total_weight}%). Trying to find target...")
                 
-                # Clean name
+                # --- Robust Name Cleaning ---
                 target_name = fund_name
-                target_name = re.sub(r"联接[A-Z]?$", "", target_name) # Remove trail
-                target_name = re.sub(r"联接", "", target_name) # Remove anywhere
+                
+                # 1. Remove company prefixes
+                common_prefixes = ["南方", "华夏", "博时", "易方达", "嘉实", "富国", "广发", "汇添富", "招商", "工银", "中欧", "天弘", "华安", "鹏华", "国泰", "华宝", "银华", "大成", "景顺长城"]
+                for prefix in common_prefixes:
+                    if target_name.startswith(prefix):
+                        target_name = target_name[len(prefix):]
+                        break
+                
+                # 2. Remove Type/Class info
+                # Order matters! Remove longer patterns first.
                 target_name = target_name.replace("发起式", "")
+                target_name = target_name.replace("（QDII）", "").replace("(QDII)", "")
+                target_name = target_name.replace("人民币", "").replace("美元", "")
+                
+                # 3. Remove "Link" suffix
+                target_name = re.sub(r"联接[A-Z]?$", "", target_name) # Remove trail with class
+                target_name = re.sub(r"联接", "", target_name) # Remove anywhere
+                
+                # 4. Remove Class Suffix safely (only if at end, ensuring we don't kill "ETF")
+                # e.g. "Gold ETFA" -> "Gold ETF". "Gold ETF" -> "Gold ETF".
+                target_name = re.sub(r"[A-E]$", "", target_name)
 
                 # Search
                 logging.info(f"Searching for target: {target_name}")
@@ -297,29 +343,21 @@ def get_fund_holdings(fund_code: str) -> Optional[Tuple[str, List[Dict[str, floa
                 if target_code == fund_code:
                      target_code = None
                 
-                if target_code:
+                # Logic: If direct match fails, try adding/removing ETF
+                if not target_code:
+                     if "ETF" not in target_name:
+                         target_code = _search_etf_code(target_name + "ETF")
+                     else:
+                         # Try removing ETF if present? Rarely useful but maybe
+                         pass
+                
+                if target_code and target_code != fund_code:
                     logging.info(f"Found target ETF: {target_code}")
-                    # Use 'Real-time' as date for ETF tracking since it IS real-time
-                    # Feeder target is A-share ETF, assumed to be SZ/SH. simple logic:
-                    # ETF usually starts with 159 (sz) or 51 (sh).
-                    # Actually get_realtime_stock_prices handles simple codes.
-                    # But we updated holding structure.
-                    # We need to fabricate the fetch_code for ETF target.
                     etf_fetch_code = target_code
                     if target_code.startswith('5'): etf_fetch_code = f"sh{target_code}"
                     else: etf_fetch_code = f"sz{target_code}"
                     
                     return (fund_name, [{'code': target_code, 'name': target_name, 'weight': 95.0, 'fetch_code': etf_fetch_code}], "实时追踪")
-
-                # Try searching with "ETF" appended
-                if "ETF" not in target_name:
-                     target_code = _search_etf_code(target_name + "ETF")
-                     if target_code and target_code != fund_code:
-                         etf_fetch_code = target_code
-                         if target_code.startswith('5'): etf_fetch_code = f"sh{target_code}"
-                         else: etf_fetch_code = f"sz{target_code}"
-                         
-                         return (fund_name, [{'code': target_code, 'name': target_name+"ETF", 'weight': 95.0, 'fetch_code': etf_fetch_code}], "实时追踪")
         
         if holdings:
             return (fund_name if fund_name else f"Fund {fund_code}", holdings, report_date)
