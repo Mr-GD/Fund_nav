@@ -3,9 +3,112 @@ import pandas as pd
 import time
 from datetime import datetime
 import logging
+import sqlite3
+import os
 
 from src.data_fetcher import get_fund_holdings, get_realtime_stock_prices, get_fund_history_nav
 from src.valuation import estimate_nav_change
+
+# Database setup
+db_path = 'funds.db'
+
+def init_db():
+    """Initialize the SQLite database and create tables if they don't exist."""
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    
+    # Create funds table with fund_code as unique key
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS funds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fund_code TEXT UNIQUE NOT NULL,
+        fund_name TEXT,
+        current_amount REAL NOT NULL,
+        current_holding_profit REAL NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    # Create index on fund_code for faster lookup
+    c.execute('CREATE INDEX IF NOT EXISTS idx_fund_code ON funds (fund_code)')
+    
+    conn.commit()
+    conn.close()
+
+# Initialize database on app start
+init_db()
+
+def get_all_funds():
+    """Get all funds from the database."""
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute('SELECT * FROM funds ORDER BY fund_code')
+    funds = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return funds
+
+def add_fund(fund_code, current_amount, fund_name=''):
+    """Add a new fund to the database."""
+    # Get fund name from API if not provided
+    if not fund_name:
+        try:
+            result_data = get_fund_holdings(fund_code)
+            if result_data:
+                if len(result_data) == 3:
+                    fund_name = result_data[0]
+                else:
+                    fund_name = result_data[0]
+        except Exception as e:
+            logging.warning(f"Error fetching fund name for {fund_code}: {e}")
+            # Keep empty fund name if API call fails
+    
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    try:
+        c.execute('''
+        INSERT OR REPLACE INTO funds (fund_code, fund_name, current_amount, current_holding_profit, updated_at)
+        VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+        ''', (fund_code, fund_name, current_amount))
+        conn.commit()
+        return True
+    except Exception as e:
+        logging.error(f"Error adding fund {fund_code}: {e}")
+        return False
+    finally:
+        conn.close()
+
+def delete_fund(fund_code):
+    """Delete a fund from the database."""
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    try:
+        c.execute('DELETE FROM funds WHERE fund_code = ?', (fund_code,))
+        conn.commit()
+        return True
+    except Exception as e:
+        logging.error(f"Error deleting fund {fund_code}: {e}")
+        return False
+    finally:
+        conn.close()
+
+def update_fund(fund_code, current_amount, current_holding_profit, fund_name=''):
+    """Update a fund in the database."""
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    try:
+        c.execute('''
+        UPDATE funds SET fund_name = ?, current_amount = ?, current_holding_profit = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE fund_code = ?
+        ''', (fund_name, current_amount, current_holding_profit, fund_code))
+        conn.commit()
+        return True
+    except Exception as e:
+        logging.error(f"Error updating fund {fund_code}: {e}")
+        return False
+    finally:
+        conn.close()
 
 # Configure page
 st.set_page_config(page_title="基金净值估算器", layout="wide")
@@ -15,8 +118,53 @@ st.markdown("基于前十大重仓股实时估算基金净值涨跌幅。")
 
 # Sidebar
 st.sidebar.header("配置")
-default_funds = "002611, 008164, 006479" # Examples: E-Fund Blue Chip, China AMC Growth, White Liquor, Gold
-fund_input = st.sidebar.text_area("基金代码 (英文逗号分隔)", value=default_funds, height=100)
+
+# Database management in sidebar
+with st.sidebar:
+    st.subheader("基金管理")
+    
+    # View all funds
+    funds = get_all_funds()
+    
+    if funds:
+        st.write("### 现有基金")
+        for fund in funds:
+            with st.expander(f"{fund['fund_code']} - {fund['fund_name'] or '未命名'}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**当前持仓金额:** ¥{fund['current_amount']:.2f}")
+                    st.write(f"**当前持有收益:** ¥{fund['current_holding_profit']:.2f}")
+                with col2:
+                    if st.button(f"删除 {fund['fund_code']}", key=f"delete_{fund['fund_code']}"):
+                        if delete_fund(fund['fund_code']):
+                            st.success(f"基金 {fund['fund_code']} 已删除")
+                            st.rerun()
+                        else:
+                            st.error(f"删除基金 {fund['fund_code']} 失败")
+    else:
+        st.write("### 暂无基金，请添加")
+    
+    # Add new fund
+    st.write("### 添加新基金")
+    with st.form("add_fund_form"):
+        new_fund_code = st.text_input("基金代码", help="例如：002611")
+        new_fund_name = st.text_input("基金名称 (可选)")
+        new_current_amount = st.number_input("当前持仓金额", min_value=0.0, value=10000.0, step=100.0, format="%.2f")
+        submitted = st.form_submit_button("添加基金")
+        
+        if submitted:
+            if new_fund_code:
+                # Add fund to database
+                if add_fund(new_fund_code, new_current_amount, new_fund_name):
+                    # Show success message
+                    st.success(f"基金 {new_fund_code} 已添加")
+                    # Rerun the app to show updated data
+                    st.rerun()
+                else:
+                    st.error(f"添加基金 {new_fund_code} 失败")
+            else:
+                st.error("请输入基金代码")
+
 auto_refresh = st.sidebar.checkbox("自动刷新 (每60秒)", value=False)
 refresh_btn = st.sidebar.button("立即刷新")
 
@@ -27,7 +175,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 def fetch_history_cached(code, days):
     return get_fund_history_nav(code, days)
 
-def process_single_fund(code):
+def process_single_fund(code, position_amount=10000.0):
     """Background worker to fetch data for a single fund."""
     try:
         # 1. Fetch Holdings
@@ -41,6 +189,8 @@ def process_single_fund(code):
                 '状态': '获取持仓失败',
                 '估算涨跌': None,
                 '重仓股权重': None,
+                '持仓金额': position_amount,
+                '估算收益': None,
                 'Details': []
             }
             
@@ -58,7 +208,11 @@ def process_single_fund(code):
         # 3. Estimate
         valuation = estimate_nav_change(holdings, prices)
         
-        # 4. Fetch History (Last 365 days for flexibility)
+        # 4. Calculate estimated profit
+        estimated_change = valuation['estimated_change']
+        estimated_profit = position_amount * (estimated_change / 100) if estimated_change is not None else None
+        
+        # 5. Fetch History (Last 365 days for flexibility)
         # Cached to avoid heavy network io
         history_df = fetch_history_cached(code, days=365)
         
@@ -67,8 +221,10 @@ def process_single_fund(code):
             '基金名称': fund_name,
             '持仓日期': report_date,
             '状态': '成功',
-            '估算涨跌': valuation['estimated_change'],
+            '估算涨跌': estimated_change,
             '重仓股权重': valuation['total_weight_used'],
+            '持仓金额': position_amount,
+            '估算收益': estimated_profit,
             'Details': valuation['details'],
             'History': history_df, # Add history
             '更新时间': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -82,55 +238,81 @@ def process_single_fund(code):
             '状态': f'Error: {str(e)}',
             '估算涨跌': None,
             '重仓股权重': None,
+            '持仓金额': position_amount,
+            '估算收益': None,
             'Details': []
         }
 
-def process_funds(code_list):
+def color_change(val):
+    """Return CSS color based on value positive/negative."""
+    if val is None:
+        return ''
+    try:
+        val = float(val)
+        if val > 0:
+            return 'color: #d63031; font-weight: bold;'
+        elif val < 0:
+            return 'color: #00b894; font-weight: bold;'
+        else:
+            return ''
+    except (ValueError, TypeError):
+        return ''
+
+def process_funds(funds_with_amounts):
     results = []
-    total = len(code_list)
+    total = len(funds_with_amounts)
     progress_bar = st.progress(0)
     status_text = st.empty()
     
     status_text.text("正在并发获取数据...")
     
     with ThreadPoolExecutor(max_workers=5) as executor:
-        # Create map of future -> code (for ordering or debugging if needed, though we just wait for all)
-        # To maintain order, we can map futures results back to list
-        # Or just append as they complete. Dashboard typically lists in input order, so let's try to keeping order?
-        # Actually simplest is map()
-        
-        futures_map = {executor.submit(process_single_fund, code.strip()): code.strip() for code in code_list if code.strip()}
+        # Create map of future -> (code, current_amount, source) for each fund
+        futures_map = {executor.submit(process_single_fund, code, current_amount): (code, current_amount, source) for code, current_amount, source in funds_with_amounts}
         
         completed_count = 0
         
-        # We want results in same order as input? Not strictly required but nice.
-        # But as_completed yields out of order.
-        # Let's collect all and then sort or assume order doesn't matter much (user can see by code).
-        # Actually, let's just collect.
-        
+        # Process completed futures
         for future in as_completed(futures_map):
             completed_count += 1
             progress_bar.progress(completed_count / len(futures_map))
             try:
                 data = future.result()
+                # No need to calculate estimated total holding profit and remaining amount
                 results.append(data)
             except Exception as e:
-                logging.error(f"Future blocked: {e}")
+                code, current_amount, source = futures_map[future]
+                logging.error(f"Future blocked for {code}: {e}")
+                # Add error entry
+                results.append({
+                    '基金代码': code,
+                    '基金名称': '--',
+                    '持仓日期': '--',
+                    '状态': f'处理失败: {str(e)}',
+                    '估算涨跌': None,
+                    '重仓股权重': None,
+                    '持仓金额': current_amount,
+                    '估算收益': None,
+                    'Details': []
+                })
                 
     status_text.empty()
     progress_bar.empty()
     
-    # Optional: Sort results to match input order
-    # code_to_index = {code.strip(): i for i, code in enumerate(code_list) if code.strip()}
-    # results.sort(key=lambda x: code_to_index.get(x['基金代码'], 999))
+    # Sort results to match input order
+    code_to_index = {code: i for i, (code, _, _) in enumerate(funds_with_amounts)}
+    results.sort(key=lambda x: code_to_index.get(x['基金代码'], 999))
     
     return results
 
-# Parse input
-codes = [c.strip() for c in fund_input.split(',') if c.strip()]
+# Only get funds from database
+db_funds = get_all_funds()
+funds_with_amounts = [(fund['fund_code'], fund['current_amount'], 'database') for fund in db_funds]
+
+codes = [item[0] for item in funds_with_amounts]
 
 if not codes:
-    st.warning("请输入至少一个基金代码。")
+    st.warning("请在数据库中添加基金。")
     st.stop()
 
 # Container for the dashboard
@@ -138,29 +320,34 @@ dashboard = st.empty()
 
 def render_dashboard():
     with dashboard.container():
-        data = process_funds(codes)
+        data = process_funds(funds_with_amounts)
         
         if not data:
             st.error("未找到数据。")
             return
 
         # Summary Table
-        summary_data = []
+        st.subheader("概览")
+        
+        if data:
+            # Create a dataframe with the results
+            df = pd.DataFrame(data)
+            
+            # Reorder columns to match the desired order
+            columns_order = ['基金代码', '基金名称', '持仓日期', '估算涨跌', '重仓股权重', '持仓金额', '估算收益', '状态', '更新时间']
+            df = df[columns_order]
+            
+            # Display the dataframe with borders and color styling
+            styler = df.style\
+                .format({'估算涨跌': "{:+.2f}%", '重仓股权重': "{:.2f}%", '持仓金额': "{:.2f}", '估算收益': "{:+.2f}"}, na_rep="--")\
+                .map(color_change, subset=['估算涨跌', '估算收益'])
+            
+            st.dataframe(styler, use_container_width=True, hide_index=True)
+        else:
+            st.warning("未找到数据。")
+        
+        # Update Intraday History Logic (Restored)
         for item in data:
-            change_val = item['估算涨跌']
-            weight_val = item['重仓股权重']
-            
-            summary_data.append({
-                '基金代码': item['基金代码'],
-                '基金名称': item['基金名称'],
-                '持仓日期': item['持仓日期'],
-                '估算涨跌': change_val, # Keep numeric for styling
-                '重仓股权重': weight_val, # Keep numeric
-                '状态': item['状态'],
-                '更新时间': item.get('更新时间', '')
-            })
-            
-            # Update Intraday History Logic (Restored)
             if item['状态'] == '成功' and item['估算涨跌'] is not None:
                 f_code = item['基金代码']
                 if 'fund_intraday' not in st.session_state:
@@ -174,30 +361,6 @@ def render_dashboard():
                 # Simple append
                 new_row = pd.DataFrame({'Time': [current_time], 'Estimate': [item['估算涨跌']]})
                 st.session_state['fund_intraday'][f_code] = pd.concat([st.session_state['fund_intraday'][f_code], new_row], ignore_index=True)
-
-        df_summary = pd.DataFrame(summary_data)
-        
-        # Style the dataframe
-        def color_change(val):
-            if isinstance(val, (float, int)):
-                if val > 0:
-                    return 'color: #D32F2F' # Red
-                elif val < 0:
-                    return 'color: #388E3C' # Green
-            return ''
-
-        # Display Summary
-        st.subheader("概览")
-        
-        # Create a display copy
-        df_display = df_summary[['基金代码', '基金名称', '持仓日期', '估算涨跌', '重仓股权重', '状态', '更新时间']]
-        
-        # Apply Styler
-        styler = df_display.style\
-            .format({'估算涨跌': "{:+.2f}%", '重仓股权重': "{:.2f}%"}, na_rep="--")\
-            .map(color_change, subset=['估算涨跌'])
-            
-        st.dataframe(styler, use_container_width=True)
         
         # Detail Expander
         st.subheader("详细信息")
@@ -208,13 +371,21 @@ def render_dashboard():
                 item = data[i]
                 if item['状态'] == '成功':
                     # --- Metrics Row ---
-                    c1, c2, c3 = st.columns(3)
+                    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
                     with c1:
                         st.metric("实时估算涨跌", f"{item['估算涨跌']:+.2f}%", delta=None)
                     with c2:
                          st.metric("前十大持仓占比", f"{item['重仓股权重']:.2f}%")
                     with c3:
                          st.metric("持仓报告期", item['持仓日期'])
+                    with c4:
+                         st.metric("持仓金额", f"{item['持仓金额']:.2f}元")
+                    with c5:
+                         st.metric("估算收益", f"{item['估算收益']:+.2f}元" if item['估算收益'] is not None else "--")
+                    with c6:
+                         st.metric("更新时间", item.get('更新时间', '--'))
+                    with c7:
+                         st.metric("数据状态", item.get('状态', '--'))
                     
                     st.divider()
                     

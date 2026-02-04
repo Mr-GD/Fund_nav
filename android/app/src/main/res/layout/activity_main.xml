@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/title_text_view"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="基金净值估算"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <EditText
+        android:id="@+id/fund_code_edit_text"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:hint="请输入基金代码（例如：002611）"
+        android:inputType="number"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/title_text_view"
+        app:layout_constraintTop_margin="24dp" />
+
+    <EditText
+        android:id="@+id/position_amount_edit_text"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:hint="请输入持仓金额"
+        android:inputType="numberDecimal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/fund_code_edit_text"
+        app:layout_constraintTop_margin="16dp" />
+
+    <Button
+        android:id="@+id/estimate_button"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="开始估算"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/position_amount_edit_text"
+        app:layout_constraintTop_margin="24dp" />
+
+    <TextView
+        android:id="@+id/result_text_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:text="估算结果将显示在这里"
+        android:textSize="16sp"
+        android:padding="16dp"
+        android:background="@android:drawable/dialog_holo_light_frame"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/estimate_button"
+        app:layout_constraintTop_margin="24dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
