@@ -1,26 +1,38 @@
 # 基金净值估算安卓应用
 
-这是一个使用WebView封装Streamlit应用的安卓项目，用于在手机上访问基金净值估算系统。
+这是一个使用Chaquopy框架在安卓设备上直接执行Python代码的基金净值估算应用，无需依赖电脑或服务器。
 
-## 准备工作
+## 功能特点
 
-1. **运行Streamlit应用**
-   - 在电脑上打开命令提示符/终端
-   - 进入项目目录：`cd e:\Project\Fund_nav`
-   - 运行应用：`streamlit run app.py`
-   - 查看终端输出，找到类似 `http://localhost:8501` 的地址
+- **独立运行**：直接在安卓手机上执行，无需电脑或服务器
+- **基金净值估算**：基于前十大重仓股实时价格加权计算
+- **SQLite数据库**：本地存储基金信息，支持添加、编辑、删除基金
+- **实时数据**：从东方财富和新浪财经获取最新数据
+- **多线程并发**：并行获取数据，提高刷新速度
+- **数据可视化**：表格形式展示基金信息和估算结果
 
-2. **获取本地IP地址**
-   - Windows：打开命令提示符，输入 `ipconfig`，找到"无线局域网适配器 WiFi"下的"IPv4地址"
-   - macOS/Linux：打开终端，输入 `ifconfig` 或 `ip addr`，找到本地IP
+## 技术实现
 
-3. **修改安卓代码中的IP地址**
-   - 打开 `android/app/src/main/java/com/example/fundnavapp/MainActivity.java`
-   - 将 `webView.loadUrl("http://192.168.1.100:8501");` 中的IP地址改为你的本地IP
+- **Chaquopy框架**：在安卓应用中嵌入Python代码
+- **Python 3.10**：执行基金净值估算的核心逻辑
+- **SQLite**：本地数据库存储基金信息
+- **WebView**：加载本地HTML界面
+- **多线程**：并行获取数据，提高性能
 
 ## 构建APK
 
-1. **使用Android Studio打开项目**
+### 准备工作
+
+1. **安装Android Studio**
+   - 下载并安装最新版本的Android Studio
+   - 确保安装了所需的SDK和构建工具
+
+2. **克隆项目**
+   - 确保项目目录结构完整：`e:\Project\Fund_nav\android`
+
+### 构建步骤
+
+1. **打开项目**
    - 启动Android Studio
    - 选择"Open an existing project"
    - 导航到 `e:\Project\Fund_nav\android` 目录并打开
@@ -28,37 +40,71 @@
 2. **同步项目**
    - Android Studio会自动检测并提示同步Gradle项目
    - 点击"Sync Now"完成同步
+   - 同步过程中会下载必要的依赖，包括Chaquopy
 
 3. **构建APK**
    - 在顶部菜单栏选择 `Build > Build Bundle(s) / APK(s) > Build APK(s)`
    - 等待构建完成
    - 构建完成后，点击"locate"按钮找到生成的APK文件
+   - APK文件位于：`android/app/build/outputs/apk/debug/app-debug.apk`
 
 4. **安装到手机**
    - 将生成的APK文件传输到你的安卓手机
    - 在手机上打开APK文件并安装
-   - 确保手机和电脑连接到同一WiFi网络
+   - 可能需要允许"安装来自未知来源的应用"
 
 ## 运行应用
 
-1. **在电脑上启动Streamlit应用**
-   ```bash
-   cd e:\Project\Fund_nav
-   streamlit run app.py
-   ```
+1. **打开应用**
+   - 点击手机桌面上的"FundNavApp"图标
 
-2. **在手机上打开应用**
-   - 点击手机桌面上的"基金净值估算"图标
-   - 应用会自动加载电脑上运行的Streamlit应用
+2. **使用指南**
+   - **添加基金**：点击"添加基金"按钮，输入基金代码和持仓金额
+   - **编辑基金**：点击基金列表中的"编辑"按钮修改信息
+   - **删除基金**：点击基金列表中的"删除"按钮移除基金
+   - **刷新数据**：点击"刷新数据"按钮更新所有基金的估算信息
+   - **单行刷新**：点击每行基金右侧的刷新按钮，仅更新该行基金数据
 
 ## 注意事项
 
-- 确保电脑和手机连接到同一WiFi网络
-- 电脑需要保持运行状态，Streamlit应用需要持续运行
-- 如需在没有电脑的情况下使用，需要将Streamlit应用部署到云服务器
+- **网络连接**：首次使用和刷新数据时需要网络连接，用于获取基金持仓和股票价格
+- **权限**：应用需要网络权限，用于获取实时数据
+- **存储**：基金信息存储在本地SQLite数据库中，无需登录
 
 ## 故障排除
 
-- **应用无法加载**：检查本地IP地址是否正确，确保Streamlit应用正在运行
-- **网络错误**：检查手机和电脑是否在同一网络，尝试关闭防火墙
-- **构建失败**：确保Android Studio已安装所有必要的SDK和构建工具
+1. **构建失败**
+   - 确保所有SDK组件已正确安装
+   - 检查Gradle配置是否正确
+   - 清理项目后重试：`Build > Clean Project`
+
+2. **应用崩溃**
+   - 检查手机日志：使用 `adb logcat` 查看崩溃日志
+   - 确保网络连接正常
+   - 尝试清除应用数据后重新打开
+
+3. **数据获取失败**
+   - 检查网络连接
+   - 确认基金代码是否正确
+   - 稍后重试，可能是API暂时不可用
+
+## 项目结构
+
+```
+android/
+├── app/
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/example/fundnavapp/
+│   │   │   │   └── MainActivity.java  # 安卓主活动
+│   │   │   ├── res/                   # 资源文件
+│   │   │   ├── assets/                # 静态资源
+│   │   │   └── python/                # Python代码
+│   │   │       ├── __init__.py
+│   │   │       ├── main.py            # Python入口点
+│   │   │       ├── data_fetcher.py    # 数据获取模块
+│   │   │       └── valuation.py       # 估值计算模块
+│   ├── build.gradle                   # 应用级构建配置
+├── build.gradle                       # 项目级构建配置
+└── settings.gradle                    # 项目设置
+```
