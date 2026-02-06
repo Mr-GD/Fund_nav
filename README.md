@@ -108,7 +108,7 @@ streamlit run app.py
 
 ### 应用截图 (Screenshot)
 
-![Android App Screenshot](images/20260206174652_8_1.jpg)
+<img src="images/20260206174652_8_1.jpg" alt="Android App Screenshot" width="500" style="display: block; margin: 0 auto;">
 
 ### 构建与打包步骤 (Build & Package)
 
