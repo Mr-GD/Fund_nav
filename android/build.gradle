@@ -2,24 +2,27 @@
 
 buildscript {
     repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
         google()
         mavenCentral()
-        maven { url "https://maven.chaquo.com/gradle" }
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:8.2.0"
-        classpath "com.chaquo.python:gradle:15.0.1"
-
-        // NOTE: Do not place your application dependencies here; they belong
-        // in the individual module build.gradle files
+        classpath 'com.android.tools.build:gradle:8.4.0'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.23'
     }
 }
 
 allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(':app')
 }
 
 task clean(type: Delete) {

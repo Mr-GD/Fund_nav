@@ -1,3 +1,23 @@
 <resources>
     <string name="app_name">基金净值估算</string>
+    <string name="add_fund">添加基金</string>
+    <string name="fund_code">基金代码</string>
+    <string name="fund_name">基金名称</string>
+    <string name="amount">金额</string>
+    <string name="add">添加</string>
+    <string name="cancel">取消</string>
+    <string name="network_error">网络错误，请稍后重试</string>
+    <string name="fund_detail">基金详情</string>
+    <string name="delete">删除</string>
+    <string name="current_amount">当前金额</string>
+    <string name="current_holding_profit">当前持仓收益</string>
+    <string name="estimated_nav">估算净值</string>
+    <string name="estimated_change">估算涨跌</string>
+    <string name="holdings">持仓</string>
+    <string name="nav_trend">净值趋势</string>
+    <string name="realtime_trend">实时趋势</string>
+    <string name="refresh">刷新</string>
+    <string name="loading">加载中...</string>
+    <string name="error_404">请求的资源不存在</string>
+    <string name="error_generic">发生错误，请稍后重试</string>
 </resources>

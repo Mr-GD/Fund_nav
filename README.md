@@ -102,5 +102,74 @@ streamlit run app.py
 *   **估值偏差**：估值仅基于公开持仓数据（滞后性）计算，无法实时反映基金经理的调仓操作。**估算结果仅供参考，不作为投资依据。**
 *   本项目仅供编程学习交流，请勿用于商业用途。
 
+## 📱 Android 应用 (Android App)
+
+本项目同时提供了基于 Kotlin 开发的 Android 原生应用，支持离线使用和本地数据存储。
+
+### 构建与打包步骤 (Build & Package)
+
+#### 1. 环境依赖 (Prerequisites)
+确保已安装以下软件：
+- JDK 1.8 或以上版本（推荐 JDK 25.0.2）
+- Android SDK（包含 Android 34 平台）
+- Gradle 9.3.1 或以上版本
+
+#### 2. 配置环境变量 (Environment Variables)
+在 `android/gradle.properties` 文件中配置以下路径：
+
+```properties
+org.gradle.java.home=D:/Program Files/Java/jdk-25.0.2
+```
+
+#### 3. 构建调试版本 (Build Debug Version)
+
+```bash
+# 进入 android 目录
+cd android
+
+# 清理构建缓存
+./gradlew clean
+
+# 构建调试版 APK
+./gradlew assembleDebug
+```
+
+构建完成后，APK 文件将生成在：`build/app/outputs/apk/debug/app-debug.apk`
+
+#### 4. 构建发布版本 (Build Release Version)
+
+```bash
+# 进入 android 目录
+cd android
+
+# 生成签名密钥（首次构建时需要）
+"D:\Program Files\Java\jdk-25.0.2\bin\keytool.exe" -genkey -v -keystore my-release-key.keystore -alias alias_name -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android, OU=Android, O=Android, L=Android, ST=Android, C=CN" -storepass android -keypass android
+
+# 复制密钥文件到 app 目录
+copy my-release-key.keystore app/
+
+# 构建发布版 APK
+./gradlew assembleRelease
+```
+
+构建完成后，APK 文件将生成在：`build/app/outputs/apk/release/app-release.apk`
+
+### 主要功能 (Main Features)
+
+- **基金管理**：添加、删除基金，本地 SQLite 存储
+- **实时净值估算**：基于持仓股票的实时行情计算
+- **数据可视化**：净值趋势图和实时分时走势图
+- **网络安全**：支持 HTTP 接口访问（配置了网络安全策略）
+- **中国时间**：使用 Asia/Shanghai 时区显示时间
+
+### 技术栈 (Tech Stack)
+
+- **语言**：Kotlin
+- **网络**：Retrofit + OkHttp
+- **JSON 解析**：Gson
+- **数据库**：SQLite
+- **图表**：MPAndroidChart
+- **UI**：Material Design Components
+
 ---
 Made with ❤️ by Desmond
