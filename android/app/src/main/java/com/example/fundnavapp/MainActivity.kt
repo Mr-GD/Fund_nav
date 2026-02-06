@@ -166,8 +166,7 @@ class FundAdapter(
         val dailyChangeTextView: android.widget.TextView = itemView.findViewById(R.id.dailyChangeTextView)
         val dailyProfitTextView: android.widget.TextView = itemView.findViewById(R.id.dailyProfitTextView)
         val holdingAmountTextView: android.widget.TextView = itemView.findViewById(R.id.holdingAmountTextView)
-        val detailButton: android.widget.Button = itemView.findViewById(R.id.detailButton)
-        val deleteButton: android.widget.Button = itemView.findViewById(R.id.deleteButton)
+        val deleteButton: android.widget.ImageButton = itemView.findViewById(R.id.deleteButton)
     }
 
     override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): FundViewHolder {
@@ -202,12 +201,25 @@ class FundAdapter(
             }
         )
 
-        holder.detailButton.setOnClickListener {
+        // 点击基金代码或基金名称跳转到详情页
+        holder.fundCodeTextView.setOnClickListener {
             onFundClick(fund)
         }
 
+        holder.fundNameTextView.setOnClickListener {
+            onFundClick(fund)
+        }
+
+        // 点击删除按钮显示确认弹窗
         holder.deleteButton.setOnClickListener {
-            onDeleteClick(fund)
+            AlertDialog.Builder(holder.itemView.context)
+                .setTitle("删除确认")
+                .setMessage("确定要删除此基金吗？")
+                .setPositiveButton("确定") {
+                    _, _ -> onDeleteClick(fund)
+                }
+                .setNegativeButton("取消", null)
+                .show()
         }
     }
 
