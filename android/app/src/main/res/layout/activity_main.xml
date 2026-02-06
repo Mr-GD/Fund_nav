@@ -33,6 +33,17 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintHorizontal_bias="0.5" />
 
+            <ImageButton
+                android:id="@+id/refreshButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_menu_rotate"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="刷新数据"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent" />
+
         </androidx.constraintlayout.widget.ConstraintLayout>
 
     </androidx.appcompat.widget.Toolbar>

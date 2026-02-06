@@ -13,12 +13,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.widget.ImageButton
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var fundAdapter: FundAdapter
     private lateinit var addButton: FloatingActionButton
+    private lateinit var refreshButton: ImageButton
     private val fundRepository = FundRepository(this)
     private val fundApiService = FundApiService()
 
@@ -29,6 +31,7 @@ class MainActivity : AppCompatActivity() {
         // 初始化视图
         recyclerView = findViewById(R.id.recyclerView)
         addButton = findViewById(R.id.addButton)
+        refreshButton = findViewById(R.id.refreshButton)
 
         // 配置RecyclerView
         recyclerView.layoutManager = LinearLayoutManager(this)
@@ -55,6 +58,11 @@ class MainActivity : AppCompatActivity() {
         // 添加按钮点击事件
         addButton.setOnClickListener {
             showAddFundDialog()
+        }
+
+        // 刷新按钮点击事件
+        refreshButton.setOnClickListener {
+            loadFunds()
         }
 
         // 加载基金列表
